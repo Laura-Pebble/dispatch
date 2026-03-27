@@ -1,0 +1,55 @@
+name: Dispatch
+
+on:
+  schedule:
+    # Runs at noon UTC = 7 AM ET (8 AM during DST)
+    - cron: '0 12 * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  generate-recap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore previous podcast episodes
+        uses: actions/cache@v4
+        with:
+          path: output/podcast
+          key: podcast-episodes-${{ github.run_number }}
+          restore-keys: podcast-episodes-
+
+      - name: Run pipeline
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          PODCAST_BASE_URL: ${{ secrets.PODCAST_BASE_URL }}
+        working-directory: src
+        run: python main.py
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: output/podcast
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4

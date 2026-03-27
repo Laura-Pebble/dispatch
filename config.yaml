@@ -1,0 +1,42 @@
+topics:
+  - name: "AI and Marketing"
+    feeds:
+      - https://martech.org/feed/
+      - https://www.marketingaiinstitute.com/blog/rss.xml
+      - https://contentmarketinginstitute.com/feed/
+    max_articles: 5
+
+  - name: "AI for Business"
+    feeds:
+      - https://www.theverge.com/rss/ai-artificial-intelligence/index.xml
+      - https://www.technologyreview.com/feed/
+      - https://www.artificialintelligence-news.com/feed/
+      - https://hbr.org/feed
+    max_articles: 5
+
+  - name: "B2B Tech and Startups"
+    feeds:
+      - https://techcrunch.com/feed/
+      - https://saastr.com/feed/
+    max_articles: 5
+
+# Web search queries (Gemini grounding) — broader net beyond RSS
+search_queries:
+  - "AI marketing tools and platforms news today"
+  - "fractional CMO trends B2B"
+  - "AI agents for business automation news"
+  - "B2B SaaS marketing strategy trends"
+search_max_results: 5
+
+# short (~2min) | medium (~5min) | deep (~10min)
+recap_length: medium
+
+# Microsoft Edge TTS voice — see https://github.com/nickmilo/edge-tts for full list
+voice: en-US-AriaNeural
+
+# Schedule (used by GitHub Actions — hour in UTC)
+# 12 UTC = 7 AM ET / 8 AM ET during DST
+schedule_hour_utc: 12
+
+# Ntfy.sh push notification topic (pick something unique/private)
+ntfy_topic: laura-morning-news
