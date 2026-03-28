@@ -37,11 +37,13 @@ jobs:
           key: podcast-episodes-${{ github.run_number }}
           restore-keys: podcast-episodes-
 
+      - name: Copy static assets to output
+        run: cp -r static/* output/podcast/ 2>/dev/null || true
+
       - name: Run pipeline
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
-          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           PODCAST_BASE_URL: ${{ secrets.PODCAST_BASE_URL }}
         working-directory: src
         run: python main.py

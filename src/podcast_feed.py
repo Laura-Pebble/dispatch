@@ -82,6 +82,14 @@ def generate_feed(mp3_path: str, script_text: str = "", config: dict = None) -> 
         itunes_explicit = ET.SubElement(channel, "{http://www.itunes.com/dtds/podcast-1.0.dtd}explicit")
         itunes_explicit.text = "false"
 
+        # Podcast cover image
+        itunes_image = ET.SubElement(channel, "{http://www.itunes.com/dtds/podcast-1.0.dtd}image")
+        itunes_image.set("href", f"{base_url}/cover.png")
+        image = ET.SubElement(channel, "image")
+        ET.SubElement(image, "url").text = f"{base_url}/cover.png"
+        ET.SubElement(image, "title").text = FEED_TITLE
+        ET.SubElement(image, "link").text = base_url
+
         tree = ET.ElementTree(root)
 
     # Check if today's episode already exists
