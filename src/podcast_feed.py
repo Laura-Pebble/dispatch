@@ -95,7 +95,7 @@ def generate_feed(mp3_path: str, script_text: str = "", config: dict = None) -> 
     # Check if today's episode already exists
     for item in channel.findall("item"):
         guid = item.find("guid")
-        if guid is not None and guid.text == f"{base_url}/podcast/{episode_filename}":
+        if guid is not None and guid.text == f"{base_url}/{episode_filename}":
             print(f"  Episode for {today} already exists in feed")
             return str(feed_path)
 
@@ -114,7 +114,7 @@ def generate_feed(mp3_path: str, script_text: str = "", config: dict = None) -> 
     description = script_text[:500] + "..." if len(script_text) > 500 else script_text
     ET.SubElement(item, "description").text = description
 
-    episode_url = f"{base_url}/podcast/{episode_filename}"
+    episode_url = f"{base_url}/{episode_filename}"
     enclosure = ET.SubElement(item, "enclosure")
     enclosure.set("url", episode_url)
     enclosure.set("length", str(file_size))
@@ -149,6 +149,6 @@ def generate_feed(mp3_path: str, script_text: str = "", config: dict = None) -> 
 
     print(f"  Episode added: {episode_filename} ({file_size / 1024:.0f} KB)")
     print(f"  Feed updated: {feed_path}")
-    print(f"  Feed URL: {base_url}/podcast/feed.xml")
+    print(f"  Feed URL: {base_url}/feed.xml")
 
     return str(feed_path)
