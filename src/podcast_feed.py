@@ -63,6 +63,19 @@ def generate_feed(mp3_path: str, script_text: str = "", config: dict = None) -> 
         tree = ET.parse(str(feed_path))
         root = tree.getroot()
         channel = root.find("channel")
+
+        # Fix any stale URLs that include /podcast/ path segment
+        bad_prefix = f"{base_url}/podcast/"
+        good_prefix = f"{base_url}/"
+        for item in channel.findall("item"):
+            enclosure = item.find("enclosure")
+            if enclosure is not None:
+                url = enclosure.get("url", "")
+                if bad_prefix in url:
+                    enclosure.set("url", url.replace(bad_prefix, good_prefix))
+            guid = item.find("guid")
+            if guid is not None and guid.text and bad_prefix in guid.text:
+                guid.text = guid.text.replace(bad_prefix, good_prefix)
     else:
         root = ET.Element("rss")
         root.set("version", "2.0")
