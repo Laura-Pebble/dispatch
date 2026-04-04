@@ -20,12 +20,32 @@ topics:
       - https://saastr.com/feed/
     max_articles: 5
 
-# Web search queries (Gemini grounding) — broader net beyond RSS
+# Web search queries (Gemini grounding) — positioning-aligned
 search_queries:
-  - "AI marketing tools and platforms news today"
-  - "fractional CMO trends B2B"
-  - "AI agents for business automation news"
-  - "B2B SaaS marketing strategy trends"
+  # Narrative 1: Fragmentation
+  - "B2B marketing chaos inconsistent messaging"
+  - "marketing team misalignment brand 2026"
+  # Narrative 2: AI Trap
+  - "AI marketing trap generic content"
+  - "synthetic content B2B quality"
+  # Narrative 3: Confidence Gap
+  - "marketing built on assumptions B2B"
+  - "strategy execution gap marketing"
+  # Narrative 4: Buyer Intelligence
+  - "buyer persona problems B2B"
+  - "AI buyer simulation marketing"
+  # Narrative 5: Humans + AI
+  - "AI copilot marketing human oversight"
+  # Narrative 6: fCMO
+  - "fractional CMO AI tools 2026"
+  # Narrative 7: AEO
+  - "AEO answer engine optimization brand"
+  - "machine readable brand AI"
+  # Counter-narrative
+  - "vibe marketing criticism B2B"
+  # Competitors
+  - "fractional CMO AI new entrant"
+
 search_max_results: 5
 
 # short (~2min) | medium (~5min) | deep (~10min)

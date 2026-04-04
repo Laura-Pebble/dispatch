@@ -1,67 +1,102 @@
-"""Stage 2: Generate a spoken script from collected news using Google Gemini."""
+"""Stage 2: Generate a strategic briefing script from classified news using Google Gemini."""
 
 import os
 from google import genai
 
+from knowledge import load_ripple_context
 
-# Prompt templates by recap length
+
+# Prompt templates by recap length — now strategic briefing format
 PROMPTS = {
-    "short": """You are a friendly, professional news briefing host called Dispatch.
-Write a spoken script (~2 minutes when read aloud) summarizing the following news articles.
+    "short": """You are Dispatch, Laura's strategic intelligence briefer.
+
+<POSITIONING CONTEXT>
+{ripple_context}
+</POSITIONING CONTEXT>
+
+Write a spoken strategic briefing (~2 minutes when read aloud).
+
+Structure:
+1. OPEN: Top strategic signal today and why it matters to Ripple (2-3 sentences)
+2. STRATEGIC SIGNALS: HIGH and MEDIUM articles with Ripple angle, grouped by cluster
+3. PLATFORM RADAR: FYI items, 1 sentence each
+4. CLOSE: One action Laura should take today
 
 Rules:
-- Start by jumping right into the news — do NOT say "good morning" or reference a time of day
-- Group stories by topic
-- For each story: one headline sentence + one sentence of context
+- Start immediately with the top signal — do NOT say "good morning" or reference a time of day
+- Skip LOW and Dispose articles entirely
+- Use the Ripple angle and cluster context provided — do not reclassify
 - Use natural, conversational language — this will be read aloud
-- End with a brief sign-off
 - Do NOT use markdown, bullet points, or formatting — plain spoken text only
-- Do NOT say "Article 1" or number the stories
+- Mention sources by name
 
-Articles by topic:
 {articles}""",
 
-    "medium": """You are a friendly, professional news briefing host called Dispatch.
-Write a spoken script (~5 minutes when read aloud) summarizing the following news articles.
+    "medium": """You are Dispatch, Laura's strategic intelligence briefer.
+
+<POSITIONING CONTEXT>
+{ripple_context}
+</POSITIONING CONTEXT>
+
+Write a spoken strategic briefing (~5 minutes when read aloud).
+
+Structure:
+1. OPEN: Top strategic signal today and why it matters to Ripple (2-3 sentences)
+2. STRATEGIC SIGNALS: HIGH and MEDIUM articles grouped by cluster, with Ripple angle for each. Explain why each matters to Pebble's positioning.
+3. PLATFORM RADAR: FYI items, 1-2 sentences each, at the end
+4. CLOSE: One action Laura should take today
 
 Rules:
-- Start by jumping right into the news — do NOT say "good morning" or reference a time of day
-- Group stories by topic with smooth transitions between topics
-- For each story: headline + a short paragraph of context explaining why it matters
-- Draw connections between related stories when relevant
+- Start immediately with the top signal — do NOT say "good morning" or reference a time of day
+- Skip LOW and Dispose articles entirely
+- Use the Ripple angle and cluster context provided — do not reclassify
+- Draw connections between signals in the same cluster
 - Use natural, conversational language — this will be read aloud
-- End with a brief sign-off
 - Do NOT use markdown, bullet points, or formatting — plain spoken text only
-- Do NOT say "Article 1" or number the stories
+- Mention sources by name
 
-Articles by topic:
 {articles}""",
 
-    "deep": """You are a friendly, professional news briefing host called Dispatch.
-Write a spoken script (~10 minutes when read aloud) providing an in-depth briefing on the following news articles.
+    "deep": """You are Dispatch, Laura's strategic intelligence briefer.
+
+<POSITIONING CONTEXT>
+{ripple_context}
+</POSITIONING CONTEXT>
+
+Write a spoken strategic briefing (~10 minutes when read aloud).
+
+Structure:
+1. OPEN: Top strategic signal today and why it matters to Ripple (2-3 sentences). Frame the day's theme.
+2. STRATEGIC SIGNALS: HIGH and MEDIUM articles grouped by cluster. For each:
+   - What happened and who said it
+   - The Ripple angle — how this connects to Pebble's positioning
+   - The suggested action and why
+   - Connections to other signals or patterns from recent days
+3. PLATFORM RADAR: FYI items with brief context, 2-3 sentences each
+4. CLOSE: Top action Laura should take today, and one pattern to watch this week
 
 Rules:
-- Start with a quick overview of today's top themes — do NOT say "good morning" or reference a time of day
-- Group stories by topic with smooth transitions
-- For each story: headline + detailed summary + analysis of implications
-- Draw connections between stories across topics
-- Include brief context about why each story matters for someone in AI, marketing, and B2B tech
+- Start immediately with the top signal — do NOT say "good morning" or reference a time of day
+- Skip LOW and Dispose articles entirely
+- Use the Ripple angle and cluster context provided — do not reclassify
+- Draw connections between signals across clusters
 - Use natural, conversational language — this will be read aloud
-- End with key takeaways and a sign-off
 - Do NOT use markdown, bullet points, or formatting — plain spoken text only
-- Do NOT say "Article 1" or number the stories
+- Mention sources by name
 
-Articles by topic:
 {articles}""",
 }
 
 
-def generate_script(news_data: list, recap_length: str = "medium") -> str:
-    """Generate a spoken briefing script from collected news articles.
+def generate_script(news_data: list, recap_length: str = "medium",
+                    classified_articles: list = None) -> str:
+    """Generate a strategic briefing script from collected news articles.
 
     Args:
-        news_data: Output from collect.collect_news()
+        news_data: Output from collect.collect_news() (fallback if no classified data)
         recap_length: "short", "medium", or "deep"
+        classified_articles: Output from log_to_notion() — articles with classification fields.
+            If provided, used instead of raw news_data for richer briefing.
 
     Returns:
         Plain text script ready for TTS.
@@ -73,14 +108,23 @@ def generate_script(news_data: list, recap_length: str = "medium") -> str:
 
     client = genai.Client(api_key=api_key)
 
-    # Format articles for the prompt
-    articles_text = _format_articles(news_data)
+    # Load positioning context
+    ripple_context = load_ripple_context()
+
+    # Format articles — prefer classified data if available
+    if classified_articles:
+        articles_text = _format_classified_articles(classified_articles)
+    else:
+        articles_text = _format_articles(news_data)
 
     if not articles_text.strip():
-        return "Good morning! I checked your news feeds today but didn't find any new stories. Check back tomorrow!"
+        return "No strategic signals today. Check back tomorrow."
 
     prompt_template = PROMPTS.get(recap_length, PROMPTS["medium"])
-    prompt = prompt_template.format(articles=articles_text)
+    prompt = prompt_template.format(
+        ripple_context=ripple_context,
+        articles=articles_text,
+    )
 
     try:
         response = client.models.generate_content(
@@ -88,7 +132,7 @@ def generate_script(news_data: list, recap_length: str = "medium") -> str:
             contents=prompt,
         )
         script = response.text.strip()
-        print(f"  Generated {recap_length} script ({len(script)} chars)")
+        print(f"  Generated {recap_length} strategic briefing ({len(script)} chars)")
         return script
     except Exception as e:
         print(f"  Error calling Gemini: {e}")
@@ -96,8 +140,50 @@ def generate_script(news_data: list, recap_length: str = "medium") -> str:
         return _fallback_script(news_data)
 
 
+def _format_classified_articles(classified_articles: list) -> str:
+    """Format classified articles with strategic context for the briefing prompt."""
+    # Separate by relevance tier
+    high = [a for a in classified_articles if a.get("relevance") == "HIGH"]
+    medium = [a for a in classified_articles if a.get("relevance") == "MEDIUM"]
+    fyi = [a for a in classified_articles if a.get("relevance") == "FYI"]
+
+    sections = []
+
+    if high:
+        sections.append("\n=== HIGH PRIORITY — Act Today ===")
+        for art in high:
+            sections.append(f"\nHeadline: {art['title']}")
+            sections.append(f"Source: {art.get('source', 'Unknown')}")
+            sections.append(f"Cluster: {art.get('cluster_match', 'none')}")
+            sections.append(f"Ripple Angle: {art.get('ripple_angle', 'N/A')}")
+            sections.append(f"Action: {art.get('action_type', 'read')} — {art.get('suggested_action', 'Review')}")
+            if art.get("description"):
+                sections.append(f"Summary: {art['description'][:300]}")
+
+    if medium:
+        sections.append("\n=== MEDIUM — Worth Knowing ===")
+        for art in medium:
+            sections.append(f"\nHeadline: {art['title']}")
+            sections.append(f"Source: {art.get('source', 'Unknown')}")
+            sections.append(f"Cluster: {art.get('cluster_match', 'none')}")
+            sections.append(f"Ripple Angle: {art.get('ripple_angle', 'N/A')}")
+            sections.append(f"Action: {art.get('action_type', 'track')} — {art.get('suggested_action', 'Monitor')}")
+            if art.get("description"):
+                sections.append(f"Summary: {art['description'][:300]}")
+
+    if fyi:
+        sections.append("\n=== FYI — Platform Radar ===")
+        for art in fyi:
+            sections.append(f"\nHeadline: {art['title']}")
+            sections.append(f"Source: {art.get('source', 'Unknown')}")
+            if art.get("description"):
+                sections.append(f"Summary: {art['description'][:200]}")
+
+    return "\n".join(sections)
+
+
 def _format_articles(news_data: list) -> str:
-    """Format news data into a readable text block for the LLM prompt."""
+    """Format raw news data into a readable text block (fallback when no classification)."""
     sections = []
     for topic_data in news_data:
         topic = topic_data["topic"]
@@ -118,7 +204,7 @@ def _format_articles(news_data: list) -> str:
 
 def _fallback_script(news_data: list) -> str:
     """Simple headline list when Gemini is unavailable."""
-    lines = ["Good morning! Here are today's headlines.\n"]
+    lines = ["Here are today's headlines.\n"]
     for topic_data in news_data:
         topic = topic_data["topic"]
         articles = topic_data["articles"]
@@ -128,5 +214,5 @@ def _fallback_script(news_data: list) -> str:
         for art in articles:
             lines.append(f"  {art['title']}, from {art['source']}.")
         lines.append("")
-    lines.append("That's your briefing for today. Have a great day!")
+    lines.append("That's your briefing for today.")
     return "\n".join(lines)
