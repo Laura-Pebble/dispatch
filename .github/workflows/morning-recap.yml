@@ -47,6 +47,12 @@ jobs:
           PODCAST_BASE_URL: ${{ secrets.PODCAST_BASE_URL }}
         working-directory: src
         run: python main.py
+        continue-on-error: true
+
+      - name: Rebuild podcast feed (guarantees clean iTunes tags)
+        env:
+          PODCAST_BASE_URL: ${{ secrets.PODCAST_BASE_URL }}
+        run: python src/rebuild_feed.py
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
