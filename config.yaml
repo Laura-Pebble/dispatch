@@ -52,7 +52,7 @@ search_max_results: 5
 recap_length: medium
 
 # Microsoft Edge TTS voice — see https://github.com/nickmilo/edge-tts for full list
-voice: en-US-DavisNeural
+voice: en-US-GuyNeural
 
 # Schedule (used by GitHub Actions — hour in UTC)
 # 12 UTC = 7 AM ET / 8 AM ET during DST
