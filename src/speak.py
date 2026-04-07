@@ -24,12 +24,25 @@ def text_to_speech(script: str, voice: str = "en-US-AriaNeural", output_path: st
     if not script.strip():
         raise ValueError("Empty script — nothing to convert to speech")
 
-    print(f"  Generating audio with voice: {voice}")
-    asyncio.run(_generate_audio(script, voice, output_path))
+    # Fallback voices if primary fails
+    voices_to_try = [voice]
+    fallbacks = ["en-US-GuyNeural", "en-US-AriaNeural", "en-US-JennyNeural"]
+    for fb in fallbacks:
+        if fb != voice:
+            voices_to_try.append(fb)
 
-    # Report file size
     import os
-    size_mb = os.path.getsize(output_path) / (1024 * 1024)
-    print(f"  Audio saved: {output_path} ({size_mb:.1f} MB)")
+    for v in voices_to_try:
+        try:
+            print(f"  Generating audio with voice: {v}")
+            asyncio.run(_generate_audio(script, v, output_path))
+            size = os.path.getsize(output_path)
+            if size < 1000:
+                raise ValueError("Audio file too small — likely empty")
+            size_mb = size / (1024 * 1024)
+            print(f"  Audio saved: {output_path} ({size_mb:.1f} MB)")
+            return output_path
+        except Exception as e:
+            print(f"  Voice {v} failed: {e}")
 
-    return output_path
+    raise RuntimeError(f"All TTS voices failed: {voices_to_try}")

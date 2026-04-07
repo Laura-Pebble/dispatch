@@ -131,20 +131,22 @@ def run():
     # Stage 3: Speak
     print("\n[4/4] Converting to audio...")
     mp3_path = str(output_dir / "recap.mp3")
+    tts_ok = False
     try:
         text_to_speech(script, voice=voice, output_path=mp3_path)
+        tts_ok = True
     except Exception as e:
         print(f"  TTS failed: {e}")
-        print("  Sending text-only notification...")
-        deliver(mp3_path, ntfy_topic, script_text=script)
-        return
 
-    # Stage 4: Podcast Feed
-    print("\n[5/6] Updating podcast feed...")
-    try:
-        generate_feed(mp3_path, script_text=script, config=config)
-    except Exception as e:
-        print(f"  Podcast feed error: {e}")
+    # Stage 4: Podcast Feed (even if TTS failed, rebuild_feed.py will handle it)
+    if tts_ok:
+        print("\n[5/6] Updating podcast feed...")
+        try:
+            generate_feed(mp3_path, script_text=script, config=config)
+        except Exception as e:
+            print(f"  Podcast feed error: {e}")
+    else:
+        print("\n[5/6] Skipping podcast feed — no audio generated")
 
     # Stage 5: Deliver notification
     print("\n[6/6] Delivering notification...")
