@@ -1,23 +1,30 @@
-"""Generate and maintain a podcast RSS feed for Dispatch episodes."""
+"""Generate and maintain a podcast RSS feed for Dispatch episodes.
+
+Always rebuilds the feed XML from scratch to guarantee clean itunes:
+namespace prefixes — Python's ElementTree retains ns0: from parsed files.
+"""
 
 import os
+import shutil
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
+from datetime import datetime
 from email.utils import formatdate
 from pathlib import Path
-import time
 
 
 # Feed metadata
 FEED_TITLE = "Dispatch"
-FEED_DESCRIPTION = "Your daily AI and B2B marketing intelligence briefing, powered by Pebble Marketing."
+FEED_DESCRIPTION = (
+    "Your daily AI and B2B marketing intelligence briefing, "
+    "powered by Pebble Marketing."
+)
 FEED_AUTHOR = "Laura McAliley"
 FEED_EMAIL = "laura@pebble-marketing.com"
 FEED_LANGUAGE = "en-us"
 FEED_CATEGORY = "Business"
 FEED_SUBCATEGORY = "Marketing"
 
-# iTunes namespace — must register this so ElementTree uses 'itunes:' not 'ns0:'
+# iTunes namespace
 ITUNES_NS = "http://www.itunes.com/dtds/podcast-1.0.dtd"
 ET.register_namespace("itunes", ITUNES_NS)
 
@@ -32,6 +39,10 @@ def _itunes(tag):
 
 def generate_feed(mp3_path: str, script_text: str = "", config: dict = None) -> str:
     """Add today's episode to the podcast RSS feed.
+
+    Rebuilds the entire feed XML from scratch every time, migrating
+    existing episodes from the old feed. This guarantees clean itunes:
+    namespace prefixes instead of ns0:.
 
     Args:
         mp3_path: Path to today's MP3 file.
@@ -61,59 +72,111 @@ def generate_feed(mp3_path: str, script_text: str = "", config: dict = None) -> 
     episode_dest = feed_dir / episode_filename
 
     # Copy MP3 to podcast directory with dated name
-    import shutil
     shutil.copy2(mp3_path, episode_dest)
-
-    # Get file size for enclosure
     file_size = os.path.getsize(str(episode_dest))
 
-    # Load existing feed or create new one
+    # ── Collect existing episodes from old feed ──────────────────────
+    existing_episodes = []
     if feed_path.exists():
-        tree = ET.parse(str(feed_path))
-        root = tree.getroot()
-        channel = root.find("channel")
+        try:
+            old_tree = ET.parse(str(feed_path))
+            old_channel = old_tree.getroot().find("channel")
+            if old_channel is not None:
+                for old_item in old_channel.findall("item"):
+                    existing_episodes.append(old_item)
+        except ET.ParseError:
+            print("  Warning: could not parse old feed, starting fresh")
 
-        # Fix any stale URLs that include /podcast/ path segment
-        bad_prefix = f"{base_url}/podcast/"
-        good_prefix = f"{base_url}/"
-        for item in channel.findall("item"):
-            enclosure = item.find("enclosure")
-            if enclosure is not None:
-                url = enclosure.get("url", "")
-                if bad_prefix in url:
-                    enclosure.set("url", url.replace(bad_prefix, good_prefix))
-            guid = item.find("guid")
-            if guid is not None and guid.text and bad_prefix in guid.text:
-                guid.text = guid.text.replace(bad_prefix, good_prefix)
+    # ── Build a brand-new feed from scratch ──────────────────────────
+    root = ET.Element("rss")
+    root.set("version", "2.0")
+    # xmlns:itunes is added automatically by ET.register_namespace
 
-        # Ensure required iTunes tags exist (backfill for older feeds)
-        _ensure_itunes_tags(channel, base_url)
-    else:
-        root, channel, tree = _create_new_feed(base_url)
+    channel = ET.SubElement(root, "channel")
 
-    # Check if today's episode already exists
-    for item in channel.findall("item"):
-        guid = item.find("guid")
-        if guid is not None and guid.text == f"{base_url}/{episode_filename}":
-            print(f"  Episode for {today} already exists in feed")
-            return str(feed_path)
+    # Required RSS channel tags
+    ET.SubElement(channel, "title").text = FEED_TITLE
+    ET.SubElement(channel, "description").text = FEED_DESCRIPTION
+    ET.SubElement(channel, "link").text = base_url
+    ET.SubElement(channel, "language").text = FEED_LANGUAGE
+    ET.SubElement(channel, "lastBuildDate").text = formatdate(localtime=True)
 
-    # Update lastBuildDate
-    build_date = channel.find("lastBuildDate")
-    if build_date is not None:
-        build_date.text = formatdate(localtime=True)
+    # Required Apple Podcasts / iTunes tags
+    ET.SubElement(channel, _itunes("author")).text = FEED_AUTHOR
+    ET.SubElement(channel, _itunes("type")).text = "episodic"
+    ET.SubElement(channel, _itunes("explicit")).text = "false"
+    ET.SubElement(channel, _itunes("summary")).text = FEED_DESCRIPTION
 
-    # Create new episode item
+    itunes_owner = ET.SubElement(channel, _itunes("owner"))
+    ET.SubElement(itunes_owner, _itunes("name")).text = FEED_AUTHOR
+    ET.SubElement(itunes_owner, _itunes("email")).text = FEED_EMAIL
+
+    itunes_category = ET.SubElement(channel, _itunes("category"))
+    itunes_category.set("text", FEED_CATEGORY)
+    sub_category = ET.SubElement(itunes_category, _itunes("category"))
+    sub_category.set("text", FEED_SUBCATEGORY)
+
+    # Cover art — Apple requires 1400×1400 to 3000×3000
+    itunes_image = ET.SubElement(channel, _itunes("image"))
+    itunes_image.set("href", f"{base_url}/cover.png")
+
+    image = ET.SubElement(channel, "image")
+    ET.SubElement(image, "url").text = f"{base_url}/cover.png"
+    ET.SubElement(image, "title").text = FEED_TITLE
+    ET.SubElement(image, "link").text = base_url
+
+    # ── Check if today's episode already exists ──────────────────────
+    episode_url = f"{base_url}/{episode_filename}"
+    episode_exists = False
+    for ep in existing_episodes:
+        guid = ep.find("guid")
+        if guid is not None and guid.text and episode_filename in guid.text:
+            episode_exists = True
+            break
+
+    # ── Create today's episode (if new) ──────────────────────────────
+    if not episode_exists:
+        new_item = _build_episode(
+            base_url, episode_filename, file_size, script_text
+        )
+        channel.append(new_item)
+        print(f"  Episode added: {episode_filename} ({file_size / 1024:.0f} KB)")
+
+    # ── Migrate old episodes (rebuild each one cleanly) ──────────────
+    for old_item in existing_episodes:
+        clean_item = _rebuild_item(old_item, base_url)
+        if clean_item is not None:
+            channel.append(clean_item)
+
+    # Keep only last 30 episodes
+    items = channel.findall("item")
+    for stale in items[30:]:
+        channel.remove(stale)
+
+    # ── Write the feed ───────────────────────────────────────────────
+    tree = ET.ElementTree(root)
+    ET.indent(tree, space="  ")
+    tree.write(str(feed_path), xml_declaration=True, encoding="utf-8")
+
+    print(f"  Feed updated: {feed_path}")
+    print(f"  Feed URL: {base_url}/feed.xml")
+
+    return str(feed_path)
+
+
+def _build_episode(base_url, filename, file_size, script_text):
+    """Build a clean <item> element for a new episode."""
     item = ET.Element("item")
 
     day_name = datetime.now().strftime("%A, %B %d, %Y")
     ET.SubElement(item, "title").text = f"Dispatch — {day_name}"
 
-    # Use first 500 chars of script as description
-    description = script_text[:500] + "..." if len(script_text) > 500 else script_text
+    description = (
+        script_text[:500] + "..." if len(script_text) > 500 else script_text
+    )
     ET.SubElement(item, "description").text = description
 
-    episode_url = f"{base_url}/{episode_filename}"
+    episode_url = f"{base_url}/{filename}"
     enclosure = ET.SubElement(item, "enclosure")
     enclosure.set("url", episode_url)
     enclosure.set("length", str(file_size))
@@ -129,103 +192,79 @@ def generate_feed(mp3_path: str, script_text: str = "", config: dict = None) -> 
     ET.SubElement(item, _itunes("summary")).text = description
     ET.SubElement(item, _itunes("episodeType")).text = "full"
 
-    itunes_duration = ET.SubElement(item, _itunes("duration"))
-    # Estimate duration: ~150 words per minute, ~5 chars per word
+    # Estimate duration: ~150 words/min, ~5 chars/word
     estimated_seconds = max(60, int(len(script_text) / 5 / 150 * 60))
     minutes = estimated_seconds // 60
     seconds = estimated_seconds % 60
-    itunes_duration.text = f"{minutes}:{seconds:02d}"
+    ET.SubElement(item, _itunes("duration")).text = f"{minutes}:{seconds:02d}"
 
-    # Insert new episode at the top (after channel metadata)
-    items = channel.findall("item")
-    if items:
-        channel.insert(list(channel).index(items[0]), item)
+    return item
+
+
+def _rebuild_item(old_item, base_url):
+    """Rebuild an episode <item> with clean namespace prefixes.
+
+    Extracts data from the old element (which may have ns0: tags)
+    and creates a fresh element with proper itunes: namespace.
+    """
+    item = ET.Element("item")
+
+    # Title
+    title_el = old_item.find("title")
+    title = title_el.text if title_el is not None else ""
+    if not title:
+        return None  # skip broken episodes
+    ET.SubElement(item, "title").text = title
+
+    # Description
+    desc_el = old_item.find("description")
+    desc = desc_el.text if desc_el is not None else ""
+    ET.SubElement(item, "description").text = desc
+
+    # Enclosure
+    enc_el = old_item.find("enclosure")
+    if enc_el is not None:
+        url = enc_el.get("url", "")
+        # Fix stale /podcast/ path segments
+        bad = f"{base_url}/podcast/"
+        good = f"{base_url}/"
+        if bad in url:
+            url = url.replace(bad, good)
+        enclosure = ET.SubElement(item, "enclosure")
+        enclosure.set("url", url)
+        enclosure.set("length", enc_el.get("length", "0"))
+        enclosure.set("type", enc_el.get("type", "audio/mpeg"))
+
+    # GUID
+    guid_el = old_item.find("guid")
+    guid_text = guid_el.text if guid_el is not None else ""
+    if guid_text:
+        bad = f"{base_url}/podcast/"
+        good = f"{base_url}/"
+        if bad in guid_text:
+            guid_text = guid_text.replace(bad, good)
+    guid = ET.SubElement(item, "guid")
+    guid.set("isPermaLink", "true")
+    guid.text = guid_text
+
+    # pubDate
+    pub_el = old_item.find("pubDate")
+    if pub_el is not None and pub_el.text:
+        ET.SubElement(item, "pubDate").text = pub_el.text
+
+    # iTunes episode tags (rebuild with proper namespace)
+    ET.SubElement(item, _itunes("summary")).text = desc
+    ET.SubElement(item, _itunes("episodeType")).text = "full"
+
+    # Duration — try to find it under any namespace prefix
+    duration_text = None
+    for child in old_item:
+        if "duration" in child.tag.lower():
+            duration_text = child.text
+            break
+    if duration_text:
+        ET.SubElement(item, _itunes("duration")).text = duration_text
     else:
-        channel.append(item)
+        ET.SubElement(item, _itunes("duration")).text = "5:00"
 
-    # Keep only last 30 episodes
-    items = channel.findall("item")
-    for old_item in items[30:]:
-        channel.remove(old_item)
-
-    # Write feed
-    ET.indent(tree, space="  ")
-    tree.write(str(feed_path), xml_declaration=True, encoding="utf-8")
-
-    print(f"  Episode added: {episode_filename} ({file_size / 1024:.0f} KB)")
-    print(f"  Feed updated: {feed_path}")
-    print(f"  Feed URL: {base_url}/feed.xml")
-
-    return str(feed_path)
-
-
-def _create_new_feed(base_url: str):
-    """Create a new podcast feed with all required Apple Podcasts tags."""
-    root = ET.Element("rss")
-    root.set("version", "2.0")
-    root.set("xmlns:itunes", ITUNES_NS)
-
-    channel = ET.SubElement(root, "channel")
-    ET.SubElement(channel, "title").text = FEED_TITLE
-    ET.SubElement(channel, "description").text = FEED_DESCRIPTION
-    ET.SubElement(channel, "link").text = base_url
-    ET.SubElement(channel, "language").text = FEED_LANGUAGE
-    ET.SubElement(channel, "lastBuildDate").text = formatdate(localtime=True)
-
-    # iTunes channel tags — required by Apple Podcasts
-    ET.SubElement(channel, _itunes("author")).text = FEED_AUTHOR
-    ET.SubElement(channel, _itunes("type")).text = "episodic"
-    ET.SubElement(channel, _itunes("explicit")).text = "false"
-
-    itunes_owner = ET.SubElement(channel, _itunes("owner"))
-    ET.SubElement(itunes_owner, _itunes("name")).text = FEED_AUTHOR
-    ET.SubElement(itunes_owner, _itunes("email")).text = FEED_EMAIL
-
-    itunes_category = ET.SubElement(channel, _itunes("category"))
-    itunes_category.set("text", FEED_CATEGORY)
-    sub_category = ET.SubElement(itunes_category, _itunes("category"))
-    sub_category.set("text", FEED_SUBCATEGORY)
-
-    # Cover art — required by Apple (must be 1400x1400 to 3000x3000)
-    itunes_image = ET.SubElement(channel, _itunes("image"))
-    itunes_image.set("href", f"{base_url}/cover.png")
-
-    image = ET.SubElement(channel, "image")
-    ET.SubElement(image, "url").text = f"{base_url}/cover.png"
-    ET.SubElement(image, "title").text = FEED_TITLE
-    ET.SubElement(image, "link").text = base_url
-
-    tree = ET.ElementTree(root)
-    return root, channel, tree
-
-
-def _ensure_itunes_tags(channel, base_url: str):
-    """Backfill missing iTunes tags on an existing feed so Apple Podcasts is happy."""
-    # itunes:type
-    if channel.find(_itunes("type")) is None:
-        ET.SubElement(channel, _itunes("type")).text = "episodic"
-
-    # itunes:owner
-    if channel.find(_itunes("owner")) is None:
-        itunes_owner = ET.SubElement(channel, _itunes("owner"))
-        ET.SubElement(itunes_owner, _itunes("name")).text = FEED_AUTHOR
-        ET.SubElement(itunes_owner, _itunes("email")).text = FEED_EMAIL
-
-    # itunes:image
-    if channel.find(_itunes("image")) is None:
-        itunes_image = ET.SubElement(channel, _itunes("image"))
-        itunes_image.set("href", f"{base_url}/cover.png")
-
-    # itunes:author
-    if channel.find(_itunes("author")) is None:
-        ET.SubElement(channel, _itunes("author")).text = FEED_AUTHOR
-
-    # itunes:explicit
-    if channel.find(_itunes("explicit")) is None:
-        ET.SubElement(channel, _itunes("explicit")).text = "false"
-
-    # itunes:category with subcategory
-    existing_cat = channel.find(_itunes("category"))
-    if existing_cat is not None and existing_cat.find(_itunes("category")) is None:
-        sub_category = ET.SubElement(existing_cat, _itunes("category"))
-        sub_category.set("text", FEED_SUBCATEGORY)
+    return item
