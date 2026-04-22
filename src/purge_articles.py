@@ -22,21 +22,26 @@ from log_notion import DATABASE_ID
 
 RATE_LIMIT_SLEEP = 0.35  # ~3 req/sec — under Notion's 3/s cap
 
+# Status values that indicate human curation — never purged.
+PROTECTED_STATUSES = {"Archived", "Reviewed"}
 
-def fetch_all_pages(notion: Client, only_unarchived: bool = True) -> list:
-    """Fetch every page in the Industry Intel DB. Returns list of page dicts."""
+
+def fetch_purgeable_pages(notion: Client) -> list:
+    """Fetch every page whose Status is NOT in PROTECTED_STATUSES."""
     pages = []
     has_more = True
     start_cursor = None
+    # Notion's select filter supports one value at a time; use compound AND of does_not_equal.
+    status_filter = {
+        "and": [
+            {"property": "Status", "select": {"does_not_equal": s}}
+            for s in PROTECTED_STATUSES
+        ]
+    }
     while has_more:
-        kwargs = {"database_id": DATABASE_ID, "page_size": 100}
+        kwargs = {"database_id": DATABASE_ID, "page_size": 100, "filter": status_filter}
         if start_cursor:
             kwargs["start_cursor"] = start_cursor
-        if only_unarchived:
-            kwargs["filter"] = {
-                "property": "Status",
-                "select": {"does_not_equal": "Archived"},
-            }
         response = notion.databases.query(**kwargs)
         pages.extend(response.get("results", []))
         has_more = response.get("has_more", False)
@@ -102,8 +107,9 @@ def main():
 
     notion = Client(auth=token)
 
-    print("Fetching all non-archived pages from Industry Intel DB...")
-    pages = fetch_all_pages(notion, only_unarchived=True)
+    print("Fetching purgeable pages from Industry Intel DB...")
+    print(f"  Protecting rows with Status in: {sorted(PROTECTED_STATUSES)}")
+    pages = fetch_purgeable_pages(notion)
     report = summarize(pages)
 
     print(f"\n  Total rows to purge: {report['total']}")
