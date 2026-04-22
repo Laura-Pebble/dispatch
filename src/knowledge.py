@@ -1,7 +1,9 @@
-"""Load Ripple positioning context and Topic Clusters from Notion."""
+"""Load Ripple positioning context, Topic Clusters, and Laura's watchlist."""
 
 import os
 from pathlib import Path
+
+import yaml
 
 
 def load_ripple_context() -> str:
@@ -11,6 +13,39 @@ def load_ripple_context() -> str:
         return path.read_text()
     print("  Warning: ripple_context.md not found, running without positioning context")
     return ""
+
+
+def load_watchlist(config_path: Path = None) -> dict:
+    """Load Laura's watchlist (people, tools, trends) from config.yaml."""
+    if config_path is None:
+        config_path = Path(__file__).parent.parent / "config.yaml"
+    if not config_path.exists():
+        return {"people": [], "tools": [], "trends": []}
+    with open(config_path, "r") as f:
+        config = yaml.safe_load(f) or {}
+    watching = config.get("watching") or {}
+    return {
+        "people": watching.get("people", []) or [],
+        "tools": watching.get("tools", []) or [],
+        "trends": watching.get("trends", []) or [],
+    }
+
+
+def format_watchlist_for_prompt(watchlist: dict) -> str:
+    """Render the watchlist as a compact string for injection into a prompt."""
+    people = watchlist.get("people", [])
+    tools = watchlist.get("tools", [])
+    trends = watchlist.get("trends", [])
+    if not (people or tools or trends):
+        return "(none)"
+    lines = []
+    if people:
+        lines.append(f"  People: {', '.join(people)}")
+    if tools:
+        lines.append(f"  Tools: {', '.join(tools)}")
+    if trends:
+        lines.append(f"  Trends: {', '.join(trends)}")
+    return "\n".join(lines)
 
 
 def load_clusters(notion_client) -> list:
