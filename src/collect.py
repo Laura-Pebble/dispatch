@@ -23,7 +23,16 @@ def collect_news(topics: list, hours_back: int = 24) -> list:
         max_articles = topic.get("max_articles", 5)
         articles = []
 
-        for feed_url in topic.get("feeds", []):
+        for feed_entry in topic.get("feeds", []):
+            if isinstance(feed_entry, str):
+                feed_url = feed_entry
+                tier = "Trade Press"
+            else:
+                feed_url = feed_entry.get("url", "")
+                tier = feed_entry.get("tier", "Trade Press")
+            if not feed_url:
+                continue
+
             try:
                 feed = feedparser.parse(feed_url)
                 source_name = feed.feed.get("title", feed_url)
@@ -48,6 +57,7 @@ def collect_news(topics: list, hours_back: int = 24) -> list:
                         "url": url,
                         "source": source_name,
                         "published": entry.get("published", ""),
+                        "tier": tier,
                     })
 
             except Exception as e:

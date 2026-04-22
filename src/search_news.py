@@ -92,6 +92,7 @@ Return ONLY the JSON array, no other text."""
                     "url": url,
                     "source": art.get("source", "Web Search"),
                     "published": "",
+                    "tier": _infer_tier(art.get("source", ""), url),
                 })
 
         unique_articles = unique_articles[:max_results]
@@ -101,3 +102,25 @@ Return ONLY the JSON array, no other text."""
     except Exception as e:
         print(f"  Warning: Web search failed: {e}")
         return []
+
+
+_TIER_DOMAINS = {
+    "Primary": [
+        "anthropic.com", "openai.com", "blog.google", "deepmind.com",
+        "ai.google", "perplexity.ai", "arxiv.org",
+    ],
+    "Practitioner": [
+        "oneusefulthing.org", "every.to", "bensbites.beehiiv.com",
+        "latent.space", "lennysnewsletter.com",
+    ],
+}
+
+
+def _infer_tier(source: str, url: str) -> str:
+    """Map search-surfaced source/URL to a tier; default Trade Press."""
+    haystack = f"{source} {url}".lower()
+    for tier, domains in _TIER_DOMAINS.items():
+        for d in domains:
+            if d in haystack:
+                return tier
+    return "Trade Press"

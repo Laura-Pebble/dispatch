@@ -1,23 +1,54 @@
 topics:
   - name: "AI and Marketing"
     feeds:
-      - https://martech.org/feed/
-      - https://www.marketingaiinstitute.com/blog/rss.xml
-      - https://contentmarketinginstitute.com/feed/
+      - url: https://martech.org/feed/
+        tier: Trade Press
+      - url: https://www.marketingaiinstitute.com/blog/rss.xml
+        tier: Trade Press
+      - url: https://contentmarketinginstitute.com/feed/
+        tier: Trade Press
     max_articles: 5
 
   - name: "AI for Business"
     feeds:
-      - https://www.theverge.com/rss/ai-artificial-intelligence/index.xml
-      - https://www.technologyreview.com/feed/
-      - https://www.artificialintelligence-news.com/feed/
-      - https://hbr.org/feed
+      - url: https://www.theverge.com/rss/ai-artificial-intelligence/index.xml
+        tier: Trade Press
+      - url: https://www.technologyreview.com/feed/
+        tier: Trade Press
+      - url: https://www.artificialintelligence-news.com/feed/
+        tier: Trade Press
+      - url: https://hbr.org/feed
+        tier: Trade Press
     max_articles: 5
 
   - name: "B2B Tech and Startups"
     feeds:
-      - https://techcrunch.com/feed/
-      - https://saastr.com/feed/
+      - url: https://techcrunch.com/feed/
+        tier: Trade Press
+      - url: https://saastr.com/feed/
+        tier: Trade Press
+    max_articles: 5
+
+  - name: "AI Tools and Tactics"
+    feeds:
+      # Practitioner newsletters — how to use the tools
+      - url: https://www.oneusefulthing.org/feed
+        tier: Practitioner
+      - url: https://every.to/feed.xml
+        tier: Practitioner
+      - url: https://bensbites.beehiiv.com/feed
+        tier: Practitioner
+      - url: https://www.latent.space/feed
+        tier: Practitioner
+      - url: https://www.lennysnewsletter.com/feed
+        tier: Practitioner
+      # Primary sources — capability releases that change what's possible
+      - url: https://www.anthropic.com/news/rss.xml
+        tier: Primary
+      - url: https://openai.com/blog/rss.xml
+        tier: Primary
+      - url: https://blog.google/technology/ai/rss/
+        tier: Primary
     max_articles: 5
 
 # Web search queries (Gemini grounding) — positioning-aligned
@@ -45,8 +76,30 @@ search_queries:
   - "vibe marketing criticism B2B"
   # Competitors
   - "fractional CMO AI new entrant"
+  # AI Tools and Tactics — how to use the tools
+  - "how to use Claude for marketing strategy"
+  - "ChatGPT workflow B2B marketing"
+  - "Gemini for competitive analysis"
+  - "Perplexity research workflow marketers"
+  - "AI prompt library positioning"
 
 search_max_results: 5
+
+# Laura's current watchlist — people, tools, and trends she's actively tracking.
+# Any article mentioning a watchlist item gets promoted to at least MEDIUM.
+# Edit this weekly as focus shifts.
+watching:
+  people:
+    - "April Dunford"
+    - "Ethan Mollick"
+    - "Peep Laja"
+  tools:
+    - "Claude Projects"
+    - "NotebookLM"
+    - "Perplexity Spaces"
+  trends:
+    - "AI search optimization"
+    - "machine-readable brand"
 
 # short (~2min) | medium (~5min) | deep (~10min)
 recap_length: medium

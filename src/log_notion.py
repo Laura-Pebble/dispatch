@@ -7,11 +7,22 @@ from datetime import datetime, timezone
 from google import genai
 from notion_client import Client
 
-from knowledge import load_ripple_context, load_clusters, format_clusters_for_prompt
+from knowledge import (
+    load_ripple_context,
+    load_clusters,
+    format_clusters_for_prompt,
+    load_watchlist,
+    format_watchlist_for_prompt,
+)
 
 
 # Notion database ID (Industry Intel — Saved Articles)
 DATABASE_ID = "fe848ba99f874eefbd16d37cfb967cdc"
+
+# Valid values for tier-aware fields
+TIER_OPTIONS = ["Primary", "Practitioner", "Trade Press", "Aggregator"]
+SIGNAL_STRENGTH_OPTIONS = ["Single", "Multi-Source", "Confirmed"]
+
 
 CLASSIFY_PROMPT = """You are classifying a news article for Pebble Marketing's strategic intelligence system.
 
@@ -23,11 +34,19 @@ CLASSIFY_PROMPT = """You are classifying a news article for Pebble Marketing's s
 {formatted_clusters}
 </ACTIVE TOPIC CLUSTERS>
 
+<LAURA'S CURRENT WATCHLIST>
+{formatted_watchlist}
+</LAURA'S CURRENT WATCHLIST>
+
 Article:
 Title: {title}
 Source: {source}
 Summary: {description}
 Topic area: {topic}
+
+Cross-source signal:
+  Reported by {source_count} outlet(s): {source_names}
+  Tier breakdown: {source_tiers} (tier diversity: {tier_diversity})
 
 Classify this article against Pebble's POSITIONING — not just its topic.
 
@@ -37,6 +56,12 @@ Decision framework:
 3. Would someone running an AI-powered B2B marketing system look uninformed for NOT knowing this? (major model releases, platform changes, AI methodology shifts, significant industry events) → FYI
 4. Is this general news with no Pebble angle? → LOW
 5. Is this noise, vendor PR, or a rehash? → Dispose
+
+Signal weighting:
+- Multiple independent outlets (tier diversity >= 2) reporting this = real trend, not one take.
+- All Trade Press / Aggregator only = likely echo of a press release; weigh accordingly.
+- A Primary source (Anthropic, OpenAI, Google AI) + any other tier = capability/market shift worth tracking.
+- Article mentions anything on Laura's watchlist = relevant to her current focus.
 
 For FYI articles: set action_type, suggested_action, ripple_angle, and cluster_match to null.
 For HIGH and MEDIUM: all fields required.
@@ -53,6 +78,80 @@ Respond in JSON only, no markdown fences:
   "cluster_match": "exact cluster name from the list above" or "none" or "potential new cluster: [description]",
   "new_market_terms": ["terms from this article not already in the cluster's Market Terms"] or []
 }}"""
+
+
+RELEVANCE_ORDER = ["Dispose", "LOW", "FYI", "MEDIUM", "HIGH"]
+
+
+def _derive_signal_strength(source_count: int, source_tiers: list, tier_diversity: int) -> str:
+    """Bucket the cross-source signal. See plan Change 1 for rules."""
+    if source_count <= 1:
+        return "Single"
+    has_primary = "Primary" in (source_tiers or [])
+    if tier_diversity >= 3 or (has_primary and source_count >= 2):
+        return "Confirmed"
+    return "Multi-Source"
+
+
+def _raise_relevance(current: str, floor: str) -> str:
+    """Return the higher of two relevance values by RELEVANCE_ORDER."""
+    try:
+        cur_idx = RELEVANCE_ORDER.index(current)
+    except ValueError:
+        cur_idx = -1
+    try:
+        floor_idx = RELEVANCE_ORDER.index(floor)
+    except ValueError:
+        return current
+    return floor if floor_idx > cur_idx else current
+
+
+def _mentions_watchlist(article: dict, watchlist: dict) -> bool:
+    """Case-insensitive substring match over title + description."""
+    haystack = f"{article.get('title', '')} {article.get('description', '')}".lower()
+    for bucket in ("people", "tools", "trends"):
+        for item in watchlist.get(bucket, []):
+            if item and item.lower() in haystack:
+                return True
+    return False
+
+
+def _ensure_schema(notion: Client):
+    """Add the 4 tier-tracking fields to the Industry Intel database if missing.
+
+    Idempotent — safe to run every invocation.
+    """
+    try:
+        db = notion.databases.retrieve(database_id=DATABASE_ID)
+    except Exception as e:
+        print(f"  Warning: Could not retrieve Notion schema: {e}")
+        return
+
+    existing = set(db.get("properties", {}).keys())
+    additions = {}
+
+    if "Source Count" not in existing:
+        additions["Source Count"] = {"number": {}}
+    if "Source Tiers" not in existing:
+        additions["Source Tiers"] = {
+            "multi_select": {"options": [{"name": n} for n in TIER_OPTIONS]}
+        }
+    if "Source Outlets" not in existing:
+        additions["Source Outlets"] = {"rich_text": {}}
+    if "Signal Strength" not in existing:
+        additions["Signal Strength"] = {
+            "select": {"options": [{"name": n} for n in SIGNAL_STRENGTH_OPTIONS]}
+        }
+
+    if not additions:
+        return
+
+    try:
+        notion.databases.update(database_id=DATABASE_ID, properties=additions)
+        for name in additions:
+            print(f"  Added Notion field: {name}")
+    except Exception as e:
+        print(f"  Warning: Could not add Notion fields {list(additions)}: {e}")
 
 
 def log_to_notion(news_data: list) -> tuple:
@@ -72,15 +171,23 @@ def log_to_notion(news_data: list) -> tuple:
 
     notion = Client(auth=notion_token)
 
+    # One-time (idempotent) schema migration
+    _ensure_schema(notion)
+
     # Get existing URLs to avoid duplicates
     existing_urls = _get_existing_urls(notion)
 
-    # Load positioning context and clusters ONCE
+    # Load positioning context, clusters, and watchlist ONCE
     ripple_context = load_ripple_context()
     clusters = load_clusters(notion)
     formatted_clusters = format_clusters_for_prompt(clusters)
     cluster_lookup = {c["name"].lower(): c for c in clusters}
+    watchlist = load_watchlist()
+    formatted_watchlist = format_watchlist_for_prompt(watchlist)
     print(f"  Loaded {len(clusters)} active topic clusters")
+    wl_total = sum(len(v) for v in watchlist.values())
+    if wl_total:
+        print(f"  Loaded watchlist: {wl_total} item(s)")
 
     # Set up Gemini for classification
     api_key = os.environ.get("GEMINI_API_KEY")
@@ -99,9 +206,26 @@ def log_to_notion(news_data: list) -> tuple:
             if not url or url in existing_urls:
                 continue
 
+            # Cross-source signal data (attached by dedup_themes.py)
+            source_count = article.get("source_count", 1)
+            source_names = article.get("source_names", [article.get("source", "Unknown")])
+            source_tiers = article.get("source_tiers", [article.get("tier", "Trade Press")])
+            tier_diversity = article.get("tier_diversity", 1)
+
             # Classify with Gemini
             classification = (
-                _classify_article(gemini_client, article, topic, ripple_context, formatted_clusters)
+                _classify_article(
+                    gemini_client,
+                    article,
+                    topic,
+                    ripple_context,
+                    formatted_clusters,
+                    formatted_watchlist,
+                    source_count,
+                    source_names,
+                    source_tiers,
+                    tier_diversity,
+                )
                 if gemini_available
                 else {}
             )
@@ -111,6 +235,20 @@ def log_to_notion(news_data: list) -> tuple:
                 print(f"    Disposed: {article['title'][:60]}...")
                 continue
 
+            # Python-side promotion rules (layered on top of model classification)
+            relevance = classification.get("relevance", "LOW")
+            has_primary_or_practitioner = any(
+                t in ("Primary", "Practitioner") for t in source_tiers
+            )
+            if tier_diversity >= 2 and has_primary_or_practitioner:
+                relevance = _raise_relevance(relevance, "MEDIUM")
+            if _mentions_watchlist(article, watchlist):
+                relevance = _raise_relevance(relevance, "MEDIUM")
+            classification["relevance"] = relevance
+
+            # Derive signal strength
+            signal_strength = _derive_signal_strength(source_count, source_tiers, tier_diversity)
+
             # Build Notion page properties
             properties = {
                 "Title": {"title": [{"text": {"content": article["title"][:2000]}}]},
@@ -119,6 +257,12 @@ def log_to_notion(news_data: list) -> tuple:
                 "Date Found": {"date": {"start": datetime.now(timezone.utc).strftime("%Y-%m-%d")}},
                 "Status": {"select": {"name": "To Review"}},
                 "Scraped": {"checkbox": False},
+                "Source Count": {"number": source_count},
+                "Source Tiers": {"multi_select": [{"name": t} for t in source_tiers if t in TIER_OPTIONS]},
+                "Source Outlets": {
+                    "rich_text": [{"text": {"content": ", ".join(source_names)[:2000]}}]
+                },
+                "Signal Strength": {"select": {"name": signal_strength}},
             }
 
             if classification.get("category"):
@@ -159,12 +303,13 @@ def log_to_notion(news_data: list) -> tuple:
                 notion.pages.create(parent={"database_id": DATABASE_ID}, properties=properties)
                 logged += 1
                 rel_tag = classification.get("relevance", "?")
-                print(f"    Logged [{rel_tag}]: {article['title'][:60]}...")
+                print(f"    Logged [{rel_tag}/{signal_strength}]: {article['title'][:60]}...")
 
                 # Store for downstream use (podcast, etc.)
                 classified_articles.append({
                     **article,
                     "topic": topic,
+                    "signal_strength": signal_strength,
                     **classification,
                 })
 
@@ -202,15 +347,31 @@ def _get_existing_urls(notion: Client) -> set:
     return urls
 
 
-def _classify_article(client, article: dict, topic: str, ripple_context: str, formatted_clusters: str) -> dict:
+def _classify_article(
+    client,
+    article: dict,
+    topic: str,
+    ripple_context: str,
+    formatted_clusters: str,
+    formatted_watchlist: str,
+    source_count: int,
+    source_names: list,
+    source_tiers: list,
+    tier_diversity: int,
+) -> dict:
     """Use Gemini to classify an article with positioning-aware prompt."""
     prompt = CLASSIFY_PROMPT.format(
         ripple_context=ripple_context,
         formatted_clusters=formatted_clusters,
+        formatted_watchlist=formatted_watchlist,
         title=article.get("title", ""),
         source=article.get("source", ""),
         description=article.get("description", ""),
         topic=topic,
+        source_count=source_count,
+        source_names=", ".join(source_names),
+        source_tiers=", ".join(source_tiers),
+        tier_diversity=tier_diversity,
     )
 
     try:
