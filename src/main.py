@@ -172,13 +172,17 @@ def run():
 
 
 def cleanup_stale_articles():
-    """Archive stale articles from the Notion database.
+    """Archive stale articles from the Notion database, then trash very old archives.
 
-    Rules:
+    Status-change rules (set Status = "Archived"):
     1. Status = "To Review" AND Date Found > 14 days ago → Archive
     2. Relevance = "Dispose" AND Date Found > 3 days ago → Archive
     3. Relevance = "FYI" AND Date Found > 30 days ago → Archive
-    4. PROTECT articles with Topic Clusters relation set (they're reference material)
+
+    Trash rule (page-archive into Notion's trash, auto-purged by Notion after 30 days):
+    4. Status = "Archived" AND not edited in 30 days → move to Notion trash
+
+    PROTECT articles with Topic Clusters relation set (they're reference material).
     """
     from log_notion import DATABASE_ID
 
@@ -255,6 +259,46 @@ def cleanup_stale_articles():
         print(f"  Archived {archived} stale article(s)")
     else:
         print("  No stale articles to archive")
+
+    # Rule 4: trash Archived rows that haven't been edited in 30+ days.
+    # Uses page-level archive (Notion trash) — auto-purged by Notion after 30 days
+    # in trash, so the row has another 30-day recovery window after this fires.
+    cutoff_iso = (today - timedelta(days=30)).isoformat()
+    trashed = 0
+    try:
+        has_more = True
+        start_cursor = None
+        while has_more:
+            kwargs = {
+                "database_id": DATABASE_ID,
+                "page_size": 100,
+                "filter": {
+                    "and": [
+                        {"property": "Status", "select": {"equals": "Archived"}},
+                        {"timestamp": "last_edited_time", "last_edited_time": {"before": cutoff_iso}},
+                    ]
+                },
+            }
+            if start_cursor:
+                kwargs["start_cursor"] = start_cursor
+            response = notion.databases.query(**kwargs)
+            for page in response.get("results", []):
+                # PROTECT Topic Clusters-linked rows — reference material stays
+                clusters_rel = page.get("properties", {}).get("Topic Clusters", {}).get("relation", [])
+                if clusters_rel:
+                    continue
+                try:
+                    notion.pages.update(page_id=page["id"], archived=True)
+                    trashed += 1
+                except Exception as e:
+                    print(f"    Warning: Could not trash page: {e}")
+            has_more = response.get("has_more", False)
+            start_cursor = response.get("next_cursor")
+    except Exception as e:
+        print(f"    Warning: Trash sweep failed: {e}")
+
+    if trashed:
+        print(f"  Moved {trashed} long-archived article(s) to Notion trash (auto-purges in 30 days)")
 
 
 if __name__ == "__main__":
