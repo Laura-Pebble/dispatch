@@ -13,8 +13,6 @@ topics:
     feeds:
       - url: https://www.theverge.com/rss/ai-artificial-intelligence/index.xml
         tier: Trade Press
-      - url: https://www.technologyreview.com/feed/
-        tier: Trade Press
       - url: https://www.artificialintelligence-news.com/feed/
         tier: Trade Press
       - url: https://hbr.org/feed
@@ -23,8 +21,6 @@ topics:
 
   - name: "B2B Tech and Startups"
     feeds:
-      - url: https://techcrunch.com/feed/
-        tier: Trade Press
       - url: https://saastr.com/feed/
         tier: Trade Press
     max_articles: 5

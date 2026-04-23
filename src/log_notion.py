@@ -119,8 +119,11 @@ def _mentions_watchlist(article: dict, watchlist: dict) -> bool:
 def _ensure_schema(notion: Client):
     """Add the 4 tier-tracking fields to the Industry Intel database if missing.
 
-    Idempotent — safe to run every invocation.
+    Idempotent — safe to run every invocation. Waits for Notion's eventual
+    consistency so immediate follow-up page writes see the new fields.
     """
+    import time
+
     try:
         db = notion.databases.retrieve(database_id=DATABASE_ID)
     except Exception as e:
@@ -152,6 +155,23 @@ def _ensure_schema(notion: Client):
             print(f"  Added Notion field: {name}")
     except Exception as e:
         print(f"  Warning: Could not add Notion fields {list(additions)}: {e}")
+        return
+
+    # Notion schema changes are eventually consistent — poll until the new
+    # fields are visible so immediate writes don't fail with
+    # "property does not exist".
+    expected = set(additions.keys())
+    for attempt in range(15):
+        time.sleep(2)
+        try:
+            db = notion.databases.retrieve(database_id=DATABASE_ID)
+            current = set(db.get("properties", {}).keys())
+            if expected.issubset(current):
+                print(f"  Schema propagated after {(attempt + 1) * 2}s")
+                return
+        except Exception:
+            continue
+    print("  Warning: schema not confirmed after 30s — this run may fail to write new fields")
 
 
 def log_to_notion(news_data: list) -> tuple:
