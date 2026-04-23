@@ -2,6 +2,7 @@
 
 import os
 import json
+import requests
 from google import genai
 from google.genai import types
 
@@ -80,20 +81,24 @@ Return ONLY the JSON array, no other text."""
 
         articles = json.loads(text)
 
-        # Deduplicate against RSS results
+        # Resolve Vertex grounding redirects + deduplicate against RSS results
         unique_articles = []
         for art in articles:
-            url = art.get("url", "")
-            if url and url not in existing_urls:
-                existing_urls.add(url)
-                unique_articles.append({
-                    "title": art.get("title", "Untitled"),
-                    "description": art.get("description", ""),
-                    "url": url,
-                    "source": art.get("source", "Web Search"),
-                    "published": "",
-                    "tier": _infer_tier(art.get("source", ""), url),
-                })
+            raw_url = art.get("url", "")
+            if not raw_url:
+                continue
+            url = _resolve_url(raw_url)
+            if url in existing_urls:
+                continue
+            existing_urls.add(url)
+            unique_articles.append({
+                "title": art.get("title", "Untitled"),
+                "description": art.get("description", ""),
+                "url": url,
+                "source": art.get("source", "Web Search"),
+                "published": "",
+                "tier": _infer_tier(art.get("source", ""), url),
+            })
 
         unique_articles = unique_articles[:max_results]
         print(f"  [Web Search] Found {len(unique_articles)} unique articles")
@@ -124,3 +129,22 @@ def _infer_tier(source: str, url: str) -> str:
             if d in haystack:
                 return tier
     return "Trade Press"
+
+
+def _resolve_url(url: str) -> str:
+    """Follow Vertex AI grounding redirect to the real article URL.
+
+    Gemini's grounded search returns wrappers like
+    `https://vertexaisearch.cloud.google.com/grounding-api-redirect/<token>`
+    instead of the actual article URL. Resolving here means downstream
+    (Notion, podcast feed) gets clickable source URLs. Falls back to the
+    wrapper if resolution fails — better than dropping the article.
+    """
+    if "vertexaisearch.cloud.google.com" not in url:
+        return url
+    try:
+        r = requests.head(url, allow_redirects=True, timeout=10)
+        final = r.url or url
+        return final if "vertexaisearch.cloud.google.com" not in final else url
+    except Exception:
+        return url
