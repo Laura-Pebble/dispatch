@@ -22,6 +22,15 @@ DATABASE_ID = "fe848ba99f874eefbd16d37cfb967cdc"
 # Valid values for tier-aware fields
 TIER_OPTIONS = ["Primary", "Practitioner", "Trade Press", "Aggregator"]
 SIGNAL_STRENGTH_OPTIONS = ["Single", "Multi-Source", "Confirmed"]
+PODCAST_SEGMENT_OPTIONS = [
+    "content_news",
+    "thought_leadership",
+    "landscape_shift",
+    "release",
+    "adjacent_topic",
+    "fun_fact",
+    "db_only",
+]
 
 
 CLASSIFY_PROMPT = """You are classifying a news article for Pebble Marketing's strategic intelligence system.
@@ -66,11 +75,31 @@ Signal weighting:
 For FYI articles: set action_type, suggested_action, ripple_angle, and cluster_match to null.
 For HIGH and MEDIUM: all fields required.
 
+PODCAST SEGMENT — assign every article to one of these buckets (this controls where it appears in the daily audio brief):
+- "content_news": articles about AI-generated content quality, B2B buyer behavior, or content craft (commentary segment).
+- "thought_leadership": flagship POV pieces, contrarian takes, arguments worth quoting (deeper segment).
+- "landscape_shift": structural changes in AI economics, model pricing, infrastructure, or platform consolidation that affect a $1M-$15M B2B fCMO practice.
+- "release": new tool/model/capability drops (quick-hit ~15s each).
+- "adjacent_topic": security, energy, regulation, broader concerns Laura tracks but doesn't act on (~30s each).
+- "fun_fact": surprising AI anecdotes, oddities, cocktail-party material (brief mention).
+- "db_only": enterprise-scale case studies (Shopify, ServiceNow, Unilever-tier), pure market data, or reference material. Saves to DB but does NOT appear in the podcast.
+
+CUSTOMER-SIZE FILTER (CRITICAL):
+Pebble serves $1M-$15M ARR B2B tech companies. If an article's insight ONLY applies at enterprise scale ($100M+), set podcast_segment = "db_only". Don't waste airtime on enterprise case studies unless the principle clearly transplants to small-mid-market.
+
+Examples:
+- Shopify's AI integration at billions in revenue → db_only (too enterprise)
+- Unilever Brand DNAi at global scale → db_only
+- ServiceNow $14.7B ARR learnings → db_only
+- A tactic Mollick describes that any team could try → content_news or release
+- A new model from Anthropic that anyone can use → release
+
 Respond in JSON only, no markdown fences:
 {{
-  "category": one of ["Platform Update", "Competitor Move", "Thought Leadership", "Influencer Activity", "New Entrant", "Funding/Market"],
+  "category": one of ["Platform Update", "Competitor Move", "Thought Leadership", "Influencer Activity", "New Entrant", "Funding/Market", "Market Data", "Methodology"],
   "relevance": one of ["HIGH", "MEDIUM", "FYI", "LOW", "Dispose"],
-  "tags": array from ["competitor", "content-opportunity", "sales-ammo", "methodology", "tool-update", "market-data"],
+  "podcast_segment": one of ["content_news", "thought_leadership", "landscape_shift", "release", "adjacent_topic", "fun_fact", "db_only"],
+  "tags": array from ["competitor", "content-opportunity", "sales-ammo", "methodology", "tool-update", "market-data", "thought-leadership"],
   "why_it_matters": "one sentence — strategic significance or null for Dispose",
   "action_type": one of ["read", "comment", "write-about", "reach-out", "share", "track"] or null,
   "suggested_action": "one-line recommended action with angle" or null,
@@ -144,6 +173,10 @@ def _ensure_schema(notion: Client):
     if "Signal Strength" not in existing:
         additions["Signal Strength"] = {
             "select": {"options": [{"name": n} for n in SIGNAL_STRENGTH_OPTIONS]}
+        }
+    if "Podcast Segment" not in existing:
+        additions["Podcast Segment"] = {
+            "select": {"options": [{"name": n} for n in PODCAST_SEGMENT_OPTIONS]}
         }
 
     if not additions:
@@ -269,6 +302,11 @@ def log_to_notion(news_data: list) -> tuple:
             # Derive signal strength
             signal_strength = _derive_signal_strength(source_count, source_tiers, tier_diversity)
 
+            # Resolve podcast segment with safe default
+            segment = classification.get("podcast_segment") or "db_only"
+            if segment not in PODCAST_SEGMENT_OPTIONS:
+                segment = "db_only"
+
             # Build Notion page properties
             properties = {
                 "Title": {"title": [{"text": {"content": article["title"][:2000]}}]},
@@ -283,6 +321,7 @@ def log_to_notion(news_data: list) -> tuple:
                     "rich_text": [{"text": {"content": ", ".join(source_names)[:2000]}}]
                 },
                 "Signal Strength": {"select": {"name": signal_strength}},
+                "Podcast Segment": {"select": {"name": segment}},
             }
 
             if classification.get("category"):
@@ -323,14 +362,17 @@ def log_to_notion(news_data: list) -> tuple:
                 notion.pages.create(parent={"database_id": DATABASE_ID}, properties=properties)
                 logged += 1
                 rel_tag = classification.get("relevance", "?")
-                print(f"    Logged [{rel_tag}/{signal_strength}]: {article['title'][:60]}...")
+                print(f"    Logged [{rel_tag}/{signal_strength}/{segment}]: {article['title'][:60]}...")
 
                 # Store for downstream use (podcast, etc.)
+                # Overwrite podcast_segment with the validated value from above so
+                # downstream code never sees an unrecognized segment.
                 classified_articles.append({
                     **article,
                     "topic": topic,
                     "signal_strength": signal_strength,
                     **classification,
+                    "podcast_segment": segment,
                 })
 
                 # Post-log: update cluster with new market terms and last signal date

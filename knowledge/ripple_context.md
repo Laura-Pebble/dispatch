@@ -267,6 +267,14 @@ machine-readable brand intelligence. Strategy designed for dual consumption.
 - Tool updates for platforms Pebble doesn't use
 - Market data without a Pebble angle
 
+### Customer-size filter (always apply)
+Pebble serves $1M–$15M ARR B2B tech companies. If an article's insight only
+applies at enterprise scale ($100M+ ARR), it should NOT be in the podcast,
+regardless of its other strengths. Save it as DB reference for later study
+(podcast_segment = "db_only"). Don't waste airtime on Shopify, ServiceNow,
+or Unilever case studies unless the principle clearly transplants down to
+the $1M–$15M tier.
+
 ### DISPOSE — Skip entirely
 - Rehashed trend pieces with no new data
 - Vendor press releases disguised as news
