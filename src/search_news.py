@@ -30,19 +30,20 @@ def search_news(queries: list, max_results: int = 5, existing_urls: set = None) 
 
     client = genai.Client(api_key=api_key)
 
-    prompt = f"""Search for the most important news articles from the last 24 hours on these topics:
+    prompt = f"""Search for the most important content from the last 7 days on these topics. Content includes news articles, blog posts, AND public social media posts from the people named in the queries (particularly X / Twitter).
 
 {chr(10).join(f'- {q}' for q in queries)}
 
-Return ONLY a JSON array of articles. Each article must have these exact fields:
-- "title": the article headline
-- "description": 1-2 sentence summary
-- "url": the full URL to the article
-- "source": the publication name
+Return ONLY a JSON array. Each item must have these exact fields:
+- "title": the article headline, OR the first 10-12 words of a social post
+- "description": 1-2 sentence summary, OR the substantive content of a social post
+- "url": the full URL (article URL or post URL like x.com/user/status/...)
+- "source": the publication name, OR "X (@handle)" for Twitter/X posts
 
-Return between 3 and {max_results} articles. Only include real, recent articles you find.
-Prioritize articles that would be surprising, counterintuitive, or directly relevant to a B2B marketing executive.
-Do NOT fabricate articles. Only return articles you can verify exist.
+Return between 3 and {max_results} items. Only include real, recent content you can verify exists.
+For named individuals (queries like "bcherny site:x.com"), prioritize their own recent posts over third-party coverage.
+Prioritize content that would be surprising, counterintuitive, or directly relevant to a B2B marketing executive.
+Do NOT fabricate content. Do NOT return old posts as if they're recent — if you cannot confirm recency, skip it.
 
 Return ONLY the JSON array, no other text."""
 
@@ -106,12 +107,14 @@ Return ONLY the JSON array, no other text."""
 
 _TIER_DOMAINS = {
     "Primary": [
-        "anthropic.com", "openai.com", "blog.google", "deepmind.com",
-        "ai.google", "perplexity.ai", "arxiv.org",
+        "anthropic.com", "openai.com", "blog.google", "developers.googleblog.com",
+        "deepmind.com", "ai.google", "perplexity.ai", "arxiv.org",
     ],
     "Practitioner": [
         "oneusefulthing.org", "every.to", "bensbites.beehiiv.com",
         "latent.space", "lennysnewsletter.com",
+        # Individual voices on X — the 5 influencers we follow via search
+        "x.com", "twitter.com",
     ],
 }
 

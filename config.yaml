@@ -45,6 +45,8 @@ topics:
         tier: Primary
       - url: https://blog.google/technology/ai/rss/
         tier: Primary
+      - url: https://developers.googleblog.com/feeds/posts/default
+        tier: Primary
     max_articles: 5
 
 # Web search queries (Gemini grounding) — positioning-aligned
@@ -78,8 +80,14 @@ search_queries:
   - "Gemini for competitive analysis"
   - "Perplexity research workflow marketers"
   - "AI prompt library positioning"
+  # Influencer voices on X (Google indexes recent public posts — no RSS needed)
+  - '"bcherny" site:x.com recent Claude Code Anthropic'
+  - '"karpathy" site:x.com recent AI'
+  - '"embirico" site:x.com recent OpenAI Codex'
+  - '"EthanMollick" site:x.com recent AI tools'
+  - '"alexalbert__" site:x.com recent Anthropic'
 
-search_max_results: 5
+search_max_results: 8
 
 # Laura's current watchlist — people, tools, and trends she's actively tracking.
 # Any article mentioning a watchlist item gets promoted to at least MEDIUM.
