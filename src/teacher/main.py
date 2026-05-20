@@ -29,6 +29,7 @@ from publish import (
     build_feed,
     deliver_notification,
     resolve_feed_config,
+    format_episode_title,
     _next_episode_number,
     _estimate_duration,
     write_episode_page,
@@ -148,14 +149,20 @@ def run():
     # ── Publish: feed, Notion episode page, Ntfy ────────────────────
     print("\n[8/8] Publishing…")
     audio_url = None
+    duration_str, _ = _estimate_duration(script)
+    episode_num = _next_episode_number(notion, notion_cfg.get("episodes_db_id", ""))
+    episode_title = format_episode_title(episode_num, lesson)
+
     if audio_ok:
-        build_feed(mp3_path, script, feed_config=resolve_feed_config(config.get("feed")))
+        build_feed(
+            mp3_path,
+            script,
+            feed_config=resolve_feed_config(config.get("feed")),
+            episode_title=episode_title,
+        )
         audio_url = deliver_notification(mp3_path, ntfy_topic, script)
     else:
         deliver_notification("", ntfy_topic, script)
-
-    duration_str, _ = _estimate_duration(script)
-    episode_num = _next_episode_number(notion, notion_cfg.get("episodes_db_id", ""))
     write_episode_page(
         notion,
         notion_cfg.get("episodes_db_id", ""),

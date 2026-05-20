@@ -59,14 +59,31 @@ def render_audio(script: str, voice: str, output_path: str) -> Optional[str]:
         return None
 
 
-def build_feed(mp3_path: str, script: str, feed_config: dict = None) -> Optional[str]:
-    """Add today's episode to the teacher feed."""
+def build_feed(mp3_path: str, script: str, feed_config: dict = None, episode_title: str = None) -> Optional[str]:
+    """Add today's episode to the teacher feed.
+
+    episode_title (e.g. "Ep 3: System prompts and personas") gets prepended
+    with the configured episode_title_prefix to form the podcast card title.
+    """
     fc = feed_config or TEACHER_FEED_DEFAULTS
     try:
-        return generate_feed(mp3_path, script_text=script, feed_config=fc)
+        return generate_feed(mp3_path, script_text=script, feed_config=fc, episode_title=episode_title)
     except Exception as e:
         print(f"  Podcast feed error: {e}")
         return None
+
+
+def format_episode_title(episode_num: int, lesson: dict) -> str:
+    """Compose the per-episode title used in the podcast feed card.
+
+    Shape: "Ep {n}: {topic}" — short enough for podcast-app tile rendering
+    while still showing the actual lesson rather than a generic date.
+    Falls back to the date when no lesson topic is available.
+    """
+    topic = (lesson or {}).get("topic")
+    if topic:
+        return f"Ep {episode_num}: {topic}"
+    return datetime.now(timezone.utc).strftime("%A, %B %d, %Y")
 
 
 def deliver_notification(mp3_path: str, ntfy_topic: str, script: str):

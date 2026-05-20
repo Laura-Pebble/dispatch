@@ -37,7 +37,7 @@ def _itunes(tag):
     return f"{{{ITUNES_NS}}}{tag}"
 
 
-def generate_feed(mp3_path: str, script_text: str = "", config: dict = None, feed_config: dict = None) -> str:
+def generate_feed(mp3_path: str, script_text: str = "", config: dict = None, feed_config: dict = None, episode_title: str = None) -> str:
     """Add today's episode to a podcast RSS feed.
 
     Rebuilds the entire feed XML from scratch every time, migrating
@@ -54,6 +54,10 @@ def generate_feed(mp3_path: str, script_text: str = "", config: dict = None, fee
             category, subcategory, feed_filename, episode_prefix,
             episode_title_prefix, cover_image. Missing keys fall back to the
             Dispatch module-level defaults.
+        episode_title: Optional explicit episode title (overrides the default
+            date-stamped title). When set, the podcast app shows e.g.
+            "Pebble Teacher — Ep 3: System prompts and personas" instead of
+            the auto-generated weekday date string.
 
     Returns:
         Path to the updated RSS feed XML file.
@@ -145,7 +149,7 @@ def generate_feed(mp3_path: str, script_text: str = "", config: dict = None, fee
     # ── Create today's episode (if new) ──────────────────────────────
     if not episode_exists:
         new_item = _build_episode(
-            base_url, episode_filename, file_size, script_text, fc["episode_title_prefix"]
+            base_url, episode_filename, file_size, script_text, fc["episode_title_prefix"], episode_title
         )
         channel.append(new_item)
         print(f"  Episode added: {episode_filename} ({file_size / 1024:.0f} KB)")
@@ -191,12 +195,15 @@ def _resolve_feed_config(overrides: dict = None) -> dict:
     return base
 
 
-def _build_episode(base_url, filename, file_size, script_text, episode_title_prefix="Dispatch — "):
+def _build_episode(base_url, filename, file_size, script_text, episode_title_prefix="Dispatch — ", episode_title=None):
     """Build a clean <item> element for a new episode."""
     item = ET.Element("item")
 
-    day_name = datetime.now().strftime("%A, %B %d, %Y")
-    ET.SubElement(item, "title").text = f"{episode_title_prefix}{day_name}"
+    if episode_title:
+        ET.SubElement(item, "title").text = f"{episode_title_prefix}{episode_title}"
+    else:
+        day_name = datetime.now().strftime("%A, %B %d, %Y")
+        ET.SubElement(item, "title").text = f"{episode_title_prefix}{day_name}"
 
     description = (
         script_text[:500] + "..." if len(script_text) > 500 else script_text
