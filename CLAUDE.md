@@ -40,3 +40,15 @@ How do you behave?
 * DO NOT  hallucinate or fabricate any information including news, stories, headlines, concepts. All of your thinking must be grounded in sourceable truths.
 * Consider copyright and first source importance when advising me. We don't take other people's work as our own.
 * Apply moral principles of business ethics at all times.
+
+## Pebble Teacher (sibling pipeline)
+
+`src/teacher/` is a second podcast pipeline that runs Mon / Wed / Fri at 7 AM ET (workflow `.github/workflows/teacher.yml`, cron `30 11 * * 1,3,5`). Distinct from Dispatch:
+
+- **Goal**: teach Laura how AI works at the depth she needs to be an AI context engineer for the marketing space — not summarize headlines.
+- **Length**: 22-28 min for the 12 foundational lessons (lessons 1-12), 15-22 min after.
+- **Sources**: curated expert blogs/docs (Anthropic, OpenAI, Google AI, Simon Willison, Mollick, Latent Space, Every, Lenny, Marketing AI Institute, Christopher Penn, Andy Crestodina), curated X handles via Gemini grounding, and a manual "Teacher Inbox" Notion DB Laura uses to drop Slack threads / clipboard URLs.
+- **Output**: Notion-backed. Per-source extracts → "Teacher Sources" DB. Per-episode page → "Teacher Episodes" DB. Curriculum tracker → "Teacher Curriculum" DB. The "Pebble Teacher" Claude Project queries these via the Notion connector — no manual uploads.
+- **Config**: `config_teacher.yaml` (separate from `config.yaml`).
+- **One-time setup**: create the 4 Notion DBs, paste IDs into `config_teacher.yaml`, run `python src/teacher/seed_curriculum.py` to load the 12 foundational lessons, then `python src/teacher/smoke_test.py all` to verify.
+- **Slack v1 limitation**: Slack community workspaces are not directly queried in CI. Drop notable threads into the Teacher Inbox DB during the week — the pipeline picks them up automatically.

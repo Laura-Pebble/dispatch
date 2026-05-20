@@ -1,0 +1,71 @@
+name: Pebble Teacher
+
+on:
+  schedule:
+    # Mon/Wed/Fri at 11:30 UTC = 6:30 AM ET (7:30 during DST)
+    # Runs 30 min before Dispatch to avoid Pages deploy contention.
+    - cron: '30 11 * * 1,3,5'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Don't run two pipelines deploying to Pages at once.
+concurrency:
+  group: pages-deploy
+  cancel-in-progress: false
+
+jobs:
+  generate-teacher:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore previous podcast episodes
+        uses: actions/cache@v4
+        with:
+          path: output/podcast
+          # Share the cache key prefix with Dispatch so both feeds preserve history
+          key: podcast-episodes-${{ github.run_number }}
+          restore-keys: podcast-episodes-
+
+      - name: Copy static assets to output
+        run: |
+          mkdir -p output/podcast
+          cp -r static/* output/podcast/ 2>/dev/null || true
+          # If there's no separate teacher cover, fall back to the Dispatch cover
+          if [ ! -f output/podcast/teacher-cover.png ] && [ -f output/podcast/cover.png ]; then
+            cp output/podcast/cover.png output/podcast/teacher-cover.png
+          fi
+
+      - name: Run Teacher pipeline
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          PODCAST_BASE_URL: ${{ secrets.PODCAST_BASE_URL }}
+          NTFY_TOPIC: ${{ secrets.TEACHER_NTFY_TOPIC }}
+        run: python src/teacher/main.py
+        continue-on-error: true
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: output/podcast
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4

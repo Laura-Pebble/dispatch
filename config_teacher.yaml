@@ -1,0 +1,107 @@
+# Pebble Teacher — AI marketing curriculum podcast config
+#
+# Runs Mon / Wed / Fri at 7 AM ET via .github/workflows/teacher.yml.
+# Source streams discovered separately; curate.py ranks them against the
+# week's curriculum lesson (loaded from the Teacher Curriculum Notion DB).
+
+# Voice / delivery
+voice: en-US-AriaNeural          # Female narrator differentiates from Dispatch (Guy)
+ntfy_topic: laura-teacher
+
+# Podcast feed metadata — overrides the Dispatch defaults in src/podcast_feed.py.
+feed:
+  title: "Pebble Teacher"
+  description: "A 3x/week teaching podcast for AI context engineers in marketing. Deep, technical, source-grounded lessons from Pebble Marketing."
+  author: "Laura McAliley"
+  email: "laura@pebble-marketing.com"
+  category: "Business"
+  subcategory: "Marketing"
+  feed_filename: "teacher.xml"
+  episode_prefix: "teacher"
+  episode_title_prefix: "Pebble Teacher — "
+  cover_image: "teacher-cover.png"
+
+# Word budgets — clamped in lesson_script.py
+word_budget_foundational: [3200, 4200]   # ~22-28 min (lessons 1-12)
+word_budget_organic:      [2200, 3200]   # ~15-22 min (after foundational arc)
+
+# Notion database IDs — fill in after one-time DB creation
+# See README section "Teacher Notion DBs setup" for the schema.
+notion:
+  curriculum_db_id: ""           # Teacher Curriculum
+  sources_db_id:    ""           # Teacher Sources
+  episodes_db_id:   ""           # Teacher Episodes
+  inbox_db_id:      ""           # Teacher Inbox (manual Slack/clipboard seed)
+  # Industry Intel — existing Dispatch DB; sources also mirror here for trend analysis
+  intel_db_id:      "fe848ba99f874eefbd16d37cfb967cdc"
+
+# ── Source streams ──────────────────────────────────────────────────────────
+
+# Blogs / docs (RSS-first, trafilatura for full text)
+blog_sources:
+  # Model maker docs / changelogs (Primary tier)
+  - name: "Anthropic News"
+    url: https://www.anthropic.com/news/rss.xml
+    tier: Primary
+  - name: "OpenAI Blog"
+    url: https://openai.com/blog/rss.xml
+    tier: Primary
+  - name: "Google AI Blog"
+    url: https://blog.google/technology/ai/rss/
+    tier: Primary
+  - name: "Google Developers Blog"
+    url: https://developers.googleblog.com/feeds/posts/default
+    tier: Primary
+
+  # AI practitioner writers (Practitioner tier)
+  - name: "Simon Willison"
+    url: https://simonwillison.net/atom/everything/
+    tier: Practitioner
+  - name: "Ethan Mollick — One Useful Thing"
+    url: https://www.oneusefulthing.org/feed
+    tier: Practitioner
+  - name: "Latent Space"
+    url: https://www.latent.space/feed
+    tier: Practitioner
+  - name: "Every.to"
+    url: https://every.to/feed.xml
+    tier: Practitioner
+  - name: "Lenny's Newsletter"
+    url: https://www.lennysnewsletter.com/feed
+    tier: Practitioner
+
+  # Marketing-AI specialists (Practitioner tier)
+  - name: "Marketing AI Institute"
+    url: https://www.marketingaiinstitute.com/blog/rss.xml
+    tier: Practitioner
+  - name: "Christopher Penn"
+    url: https://www.christopherspenn.com/feed/
+    tier: Practitioner
+  - name: "Andy Crestodina — Orbit Media"
+    url: https://www.orbitmedia.com/feed/
+    tier: Practitioner
+
+# X / Twitter — discovered via Gemini Google Search grounding (no API)
+# The handle is plain (no @); discover_x.py wraps it into a `"<handle>" site:x.com` query.
+x_handles:
+  - bcherny           # Boris Cherny — Anthropic, Claude Code
+  - simonw            # Simon Willison
+  - emollick          # Ethan Mollick
+  - swyx              # swyx — Latent Space
+  - latentspacepod    # Latent Space podcast
+  - karpathy          # Andrej Karpathy
+  - goodside          # Riley Goodside
+  - jeremyphoward     # Jeremy Howard
+  - OfficialLoganK    # Logan Kilpatrick — Google
+  - HamelHusain       # Hamel Husain
+
+# Look-back window for each run (days)
+lookback_days: 7
+
+# Per-stream caps (avoid one source dominating)
+max_items_per_blog: 3
+max_items_per_handle: 2
+max_inbox_items: 5
+
+# How many curated sources end up in the lesson script
+target_sources_per_episode: 5

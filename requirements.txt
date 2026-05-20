@@ -6,3 +6,4 @@ requests>=2.31
 pyyaml>=6.0
 notion-client>=2.2,<2.4
 mutagen>=1.47
+trafilatura>=1.6
