@@ -47,8 +47,8 @@ How do you behave?
 
 - **Goal**: teach Laura how AI works at the depth she needs to be an AI context engineer for the marketing space — not summarize headlines.
 - **Length**: 22-28 min for the 12 foundational lessons (lessons 1-12), 15-22 min after.
-- **Sources**: curated expert blogs/docs (Anthropic, OpenAI, Google AI, Simon Willison, Mollick, Latent Space, Every, Lenny, Marketing AI Institute, Christopher Penn, Andy Crestodina), curated X handles via Gemini grounding, and a manual "Teacher Inbox" Notion DB Laura uses to drop Slack threads / clipboard URLs.
+- **Sources**: curated expert blogs/docs (Anthropic, OpenAI, Google AI, Simon Willison, Mollick, Latent Space, Every, Lenny, Marketing AI Institute, Christopher Penn, Andy Crestodina), curated X handles via Gemini grounding, and a Teacher Inbox Notion DB that's filled automatically by a scheduled Claude Code session scanning 4 community Slacks.
 - **Output**: Notion-backed. Per-source extracts → "Teacher Sources" DB. Per-episode page → "Teacher Episodes" DB. Curriculum tracker → "Teacher Curriculum" DB. The "Pebble Teacher" Claude Project queries these via the Notion connector — no manual uploads.
 - **Config**: `config_teacher.yaml` (separate from `config.yaml`).
-- **One-time setup**: create the 4 Notion DBs, paste IDs into `config_teacher.yaml`, run `python src/teacher/seed_curriculum.py` to load the 12 foundational lessons, then `python src/teacher/smoke_test.py all` to verify.
-- **Slack v1 limitation**: Slack community workspaces are not directly queried in CI. Drop notable threads into the Teacher Inbox DB during the week — the pipeline picks them up automatically.
+- **One-time setup**: create the 4 Notion DBs, paste IDs into `config_teacher.yaml`, run `python src/teacher/seed_curriculum.py` to load the 12 foundational lessons, then `python src/teacher/smoke_test.py all` to verify. Set up the inbox collector scheduled session per `src/teacher/SETUP.md` step 7.
+- **Slack ingest**: a recurring Claude Code on the Web session (prompt at `src/teacher/inbox_collector_prompt.md`) runs Sun/Tue/Thu evenings, scans Pavilion / RevGenius / AI GTM / Cybersec Marketing Society, and writes high-signal threads into the Teacher Inbox DB. Laura never drops anything manually.

@@ -31,7 +31,7 @@ notion:
   curriculum_db_id: ""           # Teacher Curriculum
   sources_db_id:    ""           # Teacher Sources
   episodes_db_id:   ""           # Teacher Episodes
-  inbox_db_id:      ""           # Teacher Inbox (manual Slack/clipboard seed)
+  inbox_db_id:      ""           # Teacher Inbox — filled by the scheduled Claude session (see src/teacher/inbox_collector_prompt.md)
   # Industry Intel — existing Dispatch DB; sources also mirror here for trend analysis
   intel_db_id:      "fe848ba99f874eefbd16d37cfb967cdc"
 

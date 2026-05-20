@@ -69,21 +69,37 @@ In the GitHub repo settings → Secrets → Actions, the Teacher workflow expect
 - `PODCAST_BASE_URL` (already exists for Dispatch)
 - `TEACHER_NTFY_TOPIC` (NEW — e.g. `laura-teacher`, separate from the Dispatch topic so notifications are distinguishable)
 
-## 7. (Optional) Add a Teacher cover image
+## 7. Set up the Slack inbox collector (scheduled Claude session)
 
-Drop `static/teacher-cover.png` (1400×1400 to 3000×3000, square PNG). The
-workflow falls back to the Dispatch cover if there isn't one.
+The CI pipeline can't call the Slack MCP (it's a Claude tool, not a Python
+library), so Slack content arrives via a **scheduled Claude Code on the Web
+session** that runs unattended and writes Slack finds into the Teacher Inbox
+Notion DB. The pipeline then reads from that DB during the Mon/Wed/Fri runs.
 
-## Manual workflow: Slack & ad-hoc sources
+**No manual drops are required after this is set up.**
 
-The Teacher pipeline does NOT crawl Slack workspaces in CI (community Slacks
-generally don't allow bots, and the MCP-based Slack tools available to Claude
-are not callable from a Python script). Instead:
+1. In claude.ai → Settings → Connectors, authorize the **Slack** connector
+   against each of the 4 community workspaces Laura belongs to (Pavilion,
+   RevGenius / Marketing AI Institute, AI GTM Support Group, Cybersecurity
+   Marketing Society). Communities whose admins block third-party app installs
+   will silently drop out — the session logs which ones.
+2. In Claude Code on the Web → Recurring sessions → **New**:
+   - Repository: `Laura-Pebble/dispatch`
+   - Branch: `main`
+   - Schedule: `Sun, Tue, Thu at 20:00 America/New_York` (so each pipeline
+     run has fresh inbox content)
+   - Prompt: paste the **Run Prompt** section from
+     `src/teacher/inbox_collector_prompt.md` verbatim
+3. Save. The session runs unattended. Each run prints a one-line summary
+   like `Inbox collector: wrote 7 rows from Pavilion, AI GTM. Skipped: RevGenius (not authorized)`.
 
-- When you see a notable Slack thread, link, or idea during the week, add a row
-  to the **Teacher Inbox** DB with the URL and a one-line `Note`.
-- On the next run, the pipeline reads "New" inbox rows, treats them as sources
-  alongside the automated discovery, and marks them "Used" when an episode
-  ships.
-- Items that don't get picked (Inbox stays "New" but lesson doesn't need them)
-  carry to the next run.
+If a community Slack is permanently un-authorizable, the only loss is that
+community's content stream — the pipeline still ships episodes from the
+remaining sources.
+
+## 8. (Optional) Add a Teacher cover image
+
+If you have a square PNG cover (1400×1400 to 3000×3000) you want to use
+instead of the Dispatch cover, save it as `static/teacher-cover.png`. If you
+skip this step, the workflow automatically falls back to the Dispatch cover —
+no action required.
