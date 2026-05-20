@@ -18,7 +18,7 @@ from typing import Optional
 from notion_client import Client
 
 
-SOURCE_TYPES = ["Blog", "X", "Newsletter", "Slack", "Doc", "Inbox"]
+SOURCE_TYPES = ["Blog", "Podcast", "X", "Newsletter", "Slack", "Doc", "Inbox"]
 SOURCE_TIERS = ["Primary", "Practitioner", "Trade Press", "Aggregator", "Community"]
 EPISODE_STATUS = ["Planned", "In Production", "Shipped"]
 CURRICULUM_STATUS = ["Planned", "In Production", "Shipped"]

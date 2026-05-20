@@ -77,10 +77,19 @@ def _fetch_full_text(url: str, timeout: int = 15) -> str:
         return ""
 
 
-def discover_blog_sources(blog_sources: list, lookback_days: int = 7, max_items_per_blog: int = 3) -> list:
-    """Walk the configured blog list and return recent items with full text.
+def discover_blog_sources(
+    blog_sources: list,
+    lookback_days: int = 7,
+    max_items_per_blog: int = 3,
+    source_type: str = "Blog",
+) -> list:
+    """Walk a feed list (blogs or podcasts) and return recent items with full text.
 
-    Returns list of dicts: {title, url, author, source, source_type='Blog', source_tier,
+    For podcasts: pass source_type="Podcast". The same RSS + trafilatura
+    pipeline applies — most podcast feeds link to episode pages whose body
+    is the show notes or full transcript, which is what we want.
+
+    Returns list of dicts: {title, url, author, source, source_type, source_tier,
                             date_published, summary, full_text}
     """
     if not blog_sources:
@@ -88,6 +97,7 @@ def discover_blog_sources(blog_sources: list, lookback_days: int = 7, max_items_
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=lookback_days)
     items = []
+    log_prefix = f"[{source_type}]"
 
     for src in blog_sources:
         name = src.get("name", "Unknown")
@@ -96,7 +106,7 @@ def discover_blog_sources(blog_sources: list, lookback_days: int = 7, max_items_
         if not url:
             continue
 
-        print(f"  [Blog] {name}…")
+        print(f"  {log_prefix} {name}…")
         try:
             feed = feedparser.parse(url)
         except Exception as e:
@@ -130,7 +140,7 @@ def discover_blog_sources(blog_sources: list, lookback_days: int = 7, max_items_
                 "url": entry_url,
                 "author": author,
                 "source": name,
-                "source_type": "Blog",
+                "source_type": source_type,
                 "source_tier": tier,
                 "date_published": published_iso[:10] if published_iso else "",
                 "summary": summary[:1500],
@@ -140,5 +150,5 @@ def discover_blog_sources(blog_sources: list, lookback_days: int = 7, max_items_
 
         print(f"    +{count_from_source} item(s)")
 
-    print(f"  [Blog] {len(items)} item(s) total")
+    print(f"  {log_prefix} {len(items)} item(s) total")
     return items

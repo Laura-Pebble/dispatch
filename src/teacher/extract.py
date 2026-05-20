@@ -230,7 +230,7 @@ def _paragraph_block(text: str) -> dict:
     }
 
 
-_ALLOWED_TYPES = {"Blog", "X", "Newsletter", "Slack", "Doc", "Inbox"}
+_ALLOWED_TYPES = {"Blog", "Podcast", "X", "Newsletter", "Slack", "Doc", "Inbox"}
 _ALLOWED_TIERS = {"Primary", "Practitioner", "Trade Press", "Aggregator", "Community"}
 
 

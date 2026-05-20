@@ -61,6 +61,10 @@ blog_sources:
     url: https://www.oneusefulthing.org/feed
     tier: Practitioner
   - name: "Latent Space"
+    # Substack feed includes both newsletter posts AND podcast episode pages
+    # with embedded transcripts — so this single source covers blog + pod.
+    # The dedicated podcast_sources block below covers shows whose
+    # transcripts aren't already in their Substack feed.
     url: https://www.latent.space/feed
     tier: Practitioner
   - name: "Every.to"
@@ -79,6 +83,28 @@ blog_sources:
     tier: Practitioner
   - name: "Andy Crestodina — Orbit Media"
     url: https://www.orbitmedia.com/feed/
+    tier: Practitioner
+
+# Podcast RSS feeds — same pipeline as blog_sources (feedparser + trafilatura
+# on each episode's link). trafilatura extracts the show-notes / transcript
+# body from the episode page. RSS feed itself usually only has the show
+# notes; transcripts come from following the entry link.
+podcast_sources:
+  - name: "The Artificial Intelligence Show"
+    # Marketing AI Institute (Paul Roetzer + Mike Kaput). Weekly. Episode
+    # pages on marketingaiinstitute.com publish full transcripts.
+    url: https://feeds.megaphone.fm/marketingai
+    tier: Practitioner
+  - name: "Marketing Against The Grain"
+    # HubSpot (Kipp Bodnar + Kieran Flanagan). B2B marketing with heavy AI
+    # focus. Transcripts on HubSpot show pages are partial — may want to
+    # drop if signal is low after a few runs.
+    url: https://feeds.megaphone.fm/marketingagainstthegrain
+    tier: Practitioner
+  - name: "The Cognitive Revolution"
+    # Nathan Labenz + Erik Torenberg (Turpentine). Deep technical AI
+    # interviews. Substack-published; posts include full transcripts.
+    url: https://cognitiverevolution.substack.com/feed
     tier: Practitioner
 
 # X / Twitter — discovered via Gemini Google Search grounding (no API)
@@ -100,6 +126,7 @@ lookback_days: 7
 
 # Per-stream caps (avoid one source dominating)
 max_items_per_blog: 3
+max_items_per_podcast: 2   # Episodes are long; 2 per show in the window is plenty
 max_items_per_handle: 2
 max_inbox_items: 5
 

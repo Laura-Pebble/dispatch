@@ -83,6 +83,12 @@ def run():
         lookback_days=config.get("lookback_days", 7),
         max_items_per_blog=config.get("max_items_per_blog", 3),
     )
+    podcast_items = discover_blog_sources(
+        config.get("podcast_sources", []),
+        lookback_days=config.get("lookback_days", 7),
+        max_items_per_blog=config.get("max_items_per_podcast", 2),
+        source_type="Podcast",
+    )
     x_items = discover_x_handles(
         config.get("x_handles", []),
         max_items_per_handle=config.get("max_items_per_handle", 2),
@@ -93,7 +99,7 @@ def run():
         notion_cfg.get("inbox_db_id", ""),
         max_items=config.get("max_inbox_items", 5),
     )
-    all_items = blog_items + x_items + inbox_items
+    all_items = blog_items + podcast_items + x_items + inbox_items
     print(f"  Discovered {len(all_items)} candidate sources")
 
     if not all_items:
